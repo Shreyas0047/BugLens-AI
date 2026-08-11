@@ -4,25 +4,32 @@ import HomePage from './pages/HomePage'
 import RunsPage from './pages/RunsPage'
 import RepositoriesPage from './pages/RepositoriesPage'
 import RunDetailPage from './pages/RunDetailPage'
+import { LensMark } from './components/ui'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 2000 } },
 })
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
-  `rounded-lg px-3 py-1.5 text-sm font-medium transition ${
-    isActive ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-100'
+  `rounded-full px-3.5 py-1.5 text-sm font-medium transition ${
+    isActive
+      ? 'bg-gold/[0.12] text-gold-bright ring-1 ring-inset ring-gold/25'
+      : 'text-ink-soft hover:bg-white/[0.04] hover:text-ink'
   }`
 
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <div className="min-h-screen bg-slate-50 text-slate-900">
-          <header className="border-b border-slate-200 bg-white">
+        <div className="min-h-screen bg-surface text-ink">
+          <header className="sticky top-0 z-40 border-b border-hairline bg-surface/85 backdrop-blur-md">
             <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3">
-              <Link to="/" className="text-lg font-bold tracking-tight">
-                Bug Lens<span className="text-blue-600">-Ai</span>
+              <Link to="/" className="flex items-center gap-2.5">
+                <LensMark />
+                <span className="text-lg font-bold tracking-tight text-ink">
+                  Bug Lens
+                  <span className="gold-text">-Ai</span>
+                </span>
               </Link>
               <nav className="flex items-center gap-1">
                 <NavLink to="/" className={navLinkClass} end>

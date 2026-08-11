@@ -2,29 +2,21 @@ import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router-dom'
 import { api, type Finding } from '../api/client'
-import { ProgressBar, RunStatusBadge } from '../components/ui'
+import { ProgressBar, RunStatusBadge, SeverityBadge } from '../components/ui'
 import { formatDate } from '../lib/format'
 
-const CATEGORY_STYLES: Record<string, string> = {
-  SECURITY: 'bg-red-50 text-red-700 border-red-200',
-  CORRECTNESS: 'bg-amber-50 text-amber-700 border-amber-200',
-  CODE_SMELL: 'bg-violet-50 text-violet-700 border-violet-200',
-  PERFORMANCE: 'bg-cyan-50 text-cyan-700 border-cyan-200',
-}
-
-const SEVERITY_TONE: Record<string, string> = {
-  critical: 'bg-red-100 text-red-700',
-  high: 'bg-orange-100 text-orange-700',
-  medium: 'bg-amber-100 text-amber-700',
-  low: 'bg-slate-100 text-slate-600',
-  info: 'bg-slate-100 text-slate-500',
+const CATEGORY_TONE: Record<string, string> = {
+  SECURITY: 'border-high/30 bg-high/10 text-[#f08780]',
+  CORRECTNESS: 'border-medium/30 bg-medium/10 text-medium',
+  CODE_SMELL: 'border-champagne/25 bg-champagne/[0.07] text-champagne-dim',
+  PERFORMANCE: 'border-low/30 bg-low/10 text-low',
 }
 
 const STATUS_TONE: Record<string, string> = {
-  open: 'bg-slate-100 text-slate-600',
-  confirmed: 'bg-blue-50 text-blue-700',
-  false_positive: 'bg-amber-50 text-amber-700',
-  overridden: 'bg-violet-50 text-violet-700',
+  open: 'border-white/10 bg-white/[0.03] text-ink-soft',
+  confirmed: 'border-gold/30 bg-gold/10 text-gold-bright',
+  false_positive: 'border-medium/30 bg-medium/10 text-medium',
+  overridden: 'border-[#c9a0dc]/30 bg-[#c9a0dc]/10 text-[#c9a0dc]',
 }
 
 function severityLabel(confidence: number): string {
@@ -42,47 +34,61 @@ function FindingRow({
   onStatusChange: (status: string) => void
   updating: boolean
 }) {
+  const severity = finding.severity_predicted ?? severityLabel(finding.confidence)
+  const confirmed = finding.status === 'confirmed'
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div
+      className={`card p-5 transition hover:border-white/[0.12] ${
+        confirmed ? 'border-l-2 border-l-gold bg-gold/[0.03]' : ''
+      }`}
+    >
       <div className="flex flex-wrap items-center gap-2">
         <span
-          className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${CATEGORY_STYLES[finding.category] ?? 'bg-slate-50 text-slate-600 border-slate-200'}`}
+          className={`inline-flex items-center rounded-full border px-2.5 py-0.5 font-mono text-[11px] font-medium uppercase tracking-wider ${CATEGORY_TONE[finding.category] ?? 'border-white/10 bg-white/[0.03] text-ink-soft'}`}
         >
           {finding.category}
         </span>
-        <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs text-slate-700">
+        <code className="rounded-md border border-gold/20 bg-gold/[0.06] px-1.5 py-0.5 font-mono text-[11px] font-medium text-gold-bright">
           {finding.type}
         </code>
-        <span className="text-xs text-slate-400">via {finding.source}</span>
-        <span
-          className={`ml-auto inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${SEVERITY_TONE[finding.severity_predicted ?? severityLabel(finding.confidence)] ?? 'bg-slate-100 text-slate-600'}`}
-          title={`risk ${finding.risk_score ?? '—'} · confidence ${(finding.confidence * 100).toFixed(0)}%`}
-        >
-          {finding.severity_predicted ?? severityLabel(finding.confidence)}
-          {finding.risk_score !== null ? ` · ${(finding.risk_score * 100).toFixed(0)}%` : ''}
+        <span className="text-xs text-ink-faint">
+          via <span className="font-mono">{finding.source}</span>
+        </span>
+        <span className="ml-auto">
+          <SeverityBadge
+            severity={severity}
+            risk={finding.risk_score}
+            title={`risk ${finding.risk_score ?? '—'} · confidence ${(finding.confidence * 100).toFixed(0)}%`}
+          />
         </span>
       </div>
 
-      <p className="mt-3 text-sm font-medium text-slate-900">{finding.message}</p>
+      <p className="mt-3 text-sm font-medium text-ink">{finding.message}</p>
 
-      <p className="mt-1 font-mono text-xs text-slate-500">
-        {finding.file}
-        {finding.line > 0 ? `:${finding.line}${finding.column > 0 ? `:${finding.column}` : ''}` : ''}
+      <p className="mt-1 font-mono text-xs text-ink-soft">
+        <span className="text-champagne-dim">{finding.file}</span>
+        {finding.line > 0 ? (
+          <>
+            <span className="text-ink-faint">:</span>
+            <span className="text-gold-bright">
+              {finding.line}
+              {finding.column > 0 ? `:${finding.column}` : ''}
+            </span>
+          </>
+        ) : null}
       </p>
 
-      {finding.description && (
-        <p className="mt-2 text-xs text-slate-500">{finding.description}</p>
-      )}
+      {finding.description && <p className="mt-2 text-xs text-ink-faint">{finding.description}</p>}
 
       {typeof finding.evidence_json?.snippet === 'string' && (
-        <pre className="mt-3 overflow-x-auto rounded-lg bg-slate-900 p-3 font-mono text-xs leading-relaxed text-slate-100">
+        <pre className="mt-3 overflow-x-auto rounded-lg border border-white/[0.06] bg-[#0b0b10] p-3 font-mono text-xs leading-relaxed text-[#d8d2c2]">
           {finding.evidence_json.snippet}
         </pre>
       )}
 
-      <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
+      <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-white/[0.06] pt-3">
         <span
-          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_TONE[finding.status] ?? 'bg-slate-100 text-slate-600'}`}
+          className={`inline-flex items-center rounded-full border px-2.5 py-0.5 font-mono text-[11px] uppercase tracking-wider ${STATUS_TONE[finding.status] ?? 'border-white/10 bg-white/[0.03] text-ink-soft'}`}
         >
           {finding.status.replace('_', ' ')}
         </span>
@@ -91,7 +97,7 @@ function FindingRow({
             <button
               onClick={() => onStatusChange('confirmed')}
               disabled={updating}
-              className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 transition hover:border-blue-300 hover:text-blue-700 disabled:opacity-50"
+              className="rounded-lg border border-gold/30 px-2.5 py-1 text-xs font-medium text-champagne transition hover:border-gold hover:bg-gold/10 hover:text-gold-bright disabled:opacity-50"
             >
               Confirm
             </button>
@@ -100,7 +106,7 @@ function FindingRow({
             <button
               onClick={() => onStatusChange('false_positive')}
               disabled={updating}
-              className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 transition hover:border-amber-300 hover:text-amber-700 disabled:opacity-50"
+              className="rounded-lg border border-medium/30 px-2.5 py-1 text-xs font-medium text-ink-soft transition hover:border-medium hover:bg-medium/10 hover:text-medium disabled:opacity-50"
             >
               False positive
             </button>
@@ -109,13 +115,24 @@ function FindingRow({
             <button
               onClick={() => onStatusChange('open')}
               disabled={updating}
-              className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 transition hover:border-slate-400 hover:text-slate-900 disabled:opacity-50"
+              className="rounded-lg border border-white/15 px-2.5 py-1 text-xs font-medium text-ink-soft transition hover:border-white/40 hover:text-ink disabled:opacity-50"
             >
               Reopen
             </button>
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+function StatTile({ value, label, accent }: { value: string; label: string; accent?: boolean }) {
+  return (
+    <div className="card p-4">
+      <p className={`font-mono text-3xl font-medium tabular-nums ${accent ? 'text-gold-bright' : 'text-champagne'}`}>
+        {value}
+      </p>
+      <p className="kicker mt-1.5">{label}</p>
     </div>
   )
 }
@@ -174,28 +191,27 @@ export default function RunDetailPage() {
     enabled: run?.status === 'completed',
   })
 
-  const categories = useMemo(
-    () => stats?.by_category ?? [],
-    [stats],
-  )
-  const sources = useMemo(
-    () => stats?.by_source ?? [],
-    [stats],
-  )
+  const categories = useMemo(() => stats?.by_category ?? [], [stats])
+  const sources = useMemo(() => stats?.by_source ?? [], [stats])
 
   const filtersVisible = (stats?.total ?? 0) > 0
   const running = run?.status === 'running' || run?.status === 'pending'
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-10">
-      <Link to="/runs" className="text-sm text-blue-600 hover:underline">
+      <Link
+        to="/runs"
+        className="font-mono text-sm text-champagne-dim transition hover:text-gold-bright"
+      >
         ← All runs
       </Link>
 
       <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Run #{runId}</h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <h1 className="text-2xl font-bold tracking-tight text-ink">
+            Run <span className="gold-text">{runId}</span>
+          </h1>
+          <p className="mt-1 text-sm text-ink-soft">
             {run?.started_at ? `Started ${formatDate(run.started_at)}` : ''}
             {run?.finished_at ? ` · finished ${formatDate(run.finished_at)}` : ''}
           </p>
@@ -204,16 +220,16 @@ export default function RunDetailPage() {
       </div>
 
       {findings?.items[0]?.model_version && (
-        <p className="mt-1 text-xs text-slate-400">
+        <p className="mt-1 font-mono text-xs text-ink-faint">
           risk model: {findings.items[0].model_version}
         </p>
       )}
 
       {run?.stage && running && (
-        <p className="mt-2 text-sm capitalize text-blue-700">Stage: {run.stage}</p>
+        <p className="mt-2 text-sm capitalize text-gold-bright">Stage: {run.stage}</p>
       )}
       {run?.error && run.status === 'failed' && (
-        <p className="mt-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <p className="mt-2 rounded-lg border border-high/40 bg-high/10 px-4 py-3 text-sm text-high">
           {run.error}
         </p>
       )}
@@ -225,24 +241,9 @@ export default function RunDetailPage() {
 
       {stats && stats.total > 0 && (
         <div className="mt-6 grid gap-4 sm:grid-cols-3">
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="text-3xl font-bold text-slate-900">{stats.total}</p>
-            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-              Findings
-            </p>
-          </div>
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="text-3xl font-bold text-red-600">{stats.high_confidence}</p>
-            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-              High confidence
-            </p>
-          </div>
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="text-3xl font-bold text-slate-900">{sources.length}</p>
-            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-              Analyzers
-            </p>
-          </div>
+          <StatTile value={String(stats.total)} label="Findings" accent />
+          <StatTile value={String(stats.high_confidence)} label="High confidence" />
+          <StatTile value={String(sources.length)} label="Analyzers" />
         </div>
       )}
 
@@ -251,7 +252,7 @@ export default function RunDetailPage() {
           <select
             value={category}
             onChange={(e) => setCategory(e.target.value)}
-            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500"
+            className="rounded-lg border border-white/10 bg-card px-3 py-2 text-sm text-ink outline-none transition focus:border-gold/60 focus:ring-2 focus:ring-gold/20"
           >
             <option value="">All categories</option>
             {categories.map((c) => (
@@ -263,7 +264,7 @@ export default function RunDetailPage() {
           <select
             value={source}
             onChange={(e) => setSource(e.target.value)}
-            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500"
+            className="rounded-lg border border-white/10 bg-card px-3 py-2 text-sm text-ink outline-none transition focus:border-gold/60 focus:ring-2 focus:ring-gold/20"
           >
             <option value="">All sources</option>
             {sources.map((s) => (
@@ -275,7 +276,7 @@ export default function RunDetailPage() {
           <select
             value={status}
             onChange={(e) => setStatus(e.target.value)}
-            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500"
+            className="rounded-lg border border-white/10 bg-card px-3 py-2 text-sm text-ink outline-none transition focus:border-gold/60 focus:ring-2 focus:ring-gold/20"
           >
             <option value="">All statuses</option>
             <option value="open">open</option>
@@ -284,7 +285,7 @@ export default function RunDetailPage() {
             <option value="overridden">overridden</option>
           </select>
           <form
-            className="flex-1 min-w-48"
+            className="min-w-48 flex-1"
             onSubmit={(e) => {
               e.preventDefault()
               setQ(search)
@@ -295,21 +296,19 @@ export default function RunDetailPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search message or file…"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              className="field"
             />
           </form>
         </div>
       )}
 
       <div className="mt-6 space-y-3">
-        {running && (
-          <p className="text-sm text-slate-500">Waiting for analysis to complete…</p>
-        )}
-        {isLoading && !running && <p className="text-sm text-slate-500">Loading findings…</p>}
+        {running && <p className="text-sm text-ink-soft">Waiting for analysis to complete…</p>}
+        {isLoading && !running && <p className="text-sm text-ink-soft">Loading findings…</p>}
         {!running && !isLoading && (findings?.items.length ?? 0) === 0 && (
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-8 text-center">
-            <p className="font-medium text-emerald-900">No findings</p>
-            <p className="mt-1 text-sm text-emerald-700">
+          <div className="card p-10 text-center">
+            <p className="font-medium text-ink">No findings</p>
+            <p className="mt-1 text-sm text-ink-faint">
               {findings ? 'No issues matched the current filters.' : 'No issues found in this run.'}
             </p>
           </div>
@@ -326,7 +325,7 @@ export default function RunDetailPage() {
         {!running && findings && findings.total > findings.items.length && (
           <button
             onClick={() => setLimit((l) => l + 100)}
-            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-600 transition hover:border-blue-300 hover:text-blue-700"
+            className="btn-ghost-gold w-full py-3"
           >
             Show more ({findings.items.length} of {findings.total})
           </button>
@@ -335,11 +334,11 @@ export default function RunDetailPage() {
 
       {!running && (files?.length ?? 0) > 0 && (
         <div className="mt-10">
-          <h2 className="text-lg font-semibold text-slate-900">File metrics</h2>
-          <div className="mt-3 overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+          <h2 className="text-lg font-semibold text-ink">File metrics</h2>
+          <div className="card mt-3 overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead>
-                <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
+                <tr className="border-b border-white/[0.07] text-[11px] uppercase tracking-[0.12em] text-champagne-dim">
                   <th className="px-4 py-3 font-medium">File</th>
                   <th className="px-4 py-3 font-medium">Language</th>
                   <th className="px-4 py-3 text-right font-medium">LOC</th>
@@ -351,15 +350,17 @@ export default function RunDetailPage() {
                 {files?.map((f) => (
                   <tr
                     key={f.id}
-                    className="border-b border-slate-100 last:border-0 hover:bg-slate-50"
+                    className="border-b border-white/[0.05] last:border-0 hover:bg-white/[0.02]"
                   >
-                    <td className="px-4 py-2.5 font-mono text-xs text-slate-700">{f.path}</td>
-                    <td className="px-4 py-2.5 text-xs text-slate-500">{f.language}</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums text-slate-700">{f.loc}</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums text-slate-700">
+                    <td className="px-4 py-2.5 font-mono text-xs text-champagne-dim">{f.path}</td>
+                    <td className="px-4 py-2.5 text-xs text-ink-soft">{f.language}</td>
+                    <td className="px-4 py-2.5 text-right font-mono text-xs tabular-nums text-ink">
+                      {f.loc}
+                    </td>
+                    <td className="px-4 py-2.5 text-right font-mono text-xs tabular-nums text-ink">
                       {f.complexity}
                     </td>
-                    <td className="px-4 py-2.5 text-right tabular-nums text-slate-700">
+                    <td className="px-4 py-2.5 text-right font-mono text-xs tabular-nums text-ink">
                       {f.maintainability !== null ? f.maintainability.toFixed(2) : '—'}
                     </td>
                   </tr>
