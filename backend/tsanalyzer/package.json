@@ -1,0 +1,10 @@
+{
+  "name": "buglens-tsanalyzer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Static analysis of JS/TS repos for Bug Lens-Ai: unused symbols, import graph, complexity.",
+  "dependencies": {
+    "ts-morph": "^24.0.0"
+  }
+}
