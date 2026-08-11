@@ -50,6 +50,56 @@ export interface RepositoryWithRun {
   run: AnalysisRun
 }
 
+export interface Finding {
+  id: number
+  run_id: number
+  source: string
+  type: string
+  category: string
+  file: string
+  line: number
+  column: number
+  message: string
+  description: string
+  confidence: number
+  evidence_json: Record<string, unknown> | null
+  status: string
+  risk_score: number | null
+  severity_predicted: string | null
+  created_at: string
+}
+
+export interface FindingListOut {
+  total: number
+  items: Finding[]
+}
+
+export interface FindingsStatsOut {
+  total: number
+  by_category: { category: string; count: number }[]
+  by_source: { source: string; count: number }[]
+  high_confidence: number
+}
+
+export interface FileStat {
+  id: number
+  path: string
+  language: string
+  loc: number
+  complexity: number
+  maintainability: number | null
+}
+
+export interface RunFindingsParams {
+  category?: string
+  source?: string
+  type?: string
+  min_confidence?: number
+  q?: string
+  limit?: number
+  offset?: number
+}
+
 const BASE = '/api'
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -85,4 +135,14 @@ export const api = {
   getRepository: (id: number) => request<Repository>(`/repositories/${id}`),
   listRuns: () => request<RunListItem[]>('/runs'),
   getRun: (id: number) => request<AnalysisRun>(`/runs/${id}`),
+  getRunFindings: (id: number, params: RunFindingsParams = {}) => {
+    const qs = new URLSearchParams()
+    for (const [k, v] of Object.entries(params)) {
+      if (v !== undefined && v !== null && v !== '') qs.set(k, String(v))
+    }
+    const q = qs.toString()
+    return request<FindingListOut>(`/runs/${id}/findings${q ? `?${q}` : ''}`)
+  },
+  getRunFindingsStats: (id: number) => request<FindingsStatsOut>(`/runs/${id}/findings/stats`),
+  getRunFiles: (id: number) => request<FileStat[]>(`/runs/${id}/files`),
 }

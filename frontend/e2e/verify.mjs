@@ -29,6 +29,24 @@ async function main() {
   await page.waitForSelector('text=Python', { timeout: 15000 })
   await page.screenshot({ path: '/tmp/opencode/ui-repos.png' })
 
+  await page.goto(`${BASE}/runs`, { waitUntil: 'networkidle' })
+  await page.waitForSelector('text=Run #8', { timeout: 15000 })
+  await page.click('text=Run #8')
+  await page.waitForSelector('text=SQL_INJECTION', { timeout: 15000 })
+  await page.waitForSelector('text=DANGEROUS_EVAL', { timeout: 15000 })
+  await page.waitForSelector('text=HARDCODED_SECRET', { timeout: 15000 })
+  await page.screenshot({ path: '/tmp/opencode/ui-run-detail.png' })
+
+  await page.goto(`${BASE}/runs/4`, { waitUntil: 'networkidle' })
+  await page.waitForSelector('text=File metrics', { timeout: 15000 })
+  await page.waitForSelector('text=subprocess_popen_with_shell_equals_true', { timeout: 15000 })
+  await page.screenshot({ path: '/tmp/opencode/ui-run4.png' })
+
+  await page.goto(`${BASE}/runs/14`, { waitUntil: 'networkidle' })
+  await page.waitForSelector('text=critical', { timeout: 15000 })
+  await page.waitForSelector('text=DANGEROUS_EVAL', { timeout: 15000 })
+  await page.screenshot({ path: '/tmp/opencode/ui-run14.png' })
+
   console.log('CONSOLE_ERRORS:', JSON.stringify(errors))
   await browser.close()
 }

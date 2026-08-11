@@ -82,10 +82,25 @@ def _analyze(
     }
 
 
+@_stage("predict")
+def _predict(
+    ctx: StageContext, db: Session, repo: Repository, run: AnalysisRun, workspace: Path
+) -> None:
+    from app.services.analysis.predict import run_predict
+
+    updated = run_predict(db, run.id)
+    repo.structure_json = {
+        **(repo.structure_json or {}),
+        "predicted_count": updated,
+        "model_version": "heuristic-v1",
+    }
+
+
 STAGES: list[tuple[str, StageFn]] = [
     _ingest,
     _profile,
     _analyze,
+    _predict,
 ]
 
 

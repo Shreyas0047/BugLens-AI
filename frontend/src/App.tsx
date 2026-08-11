@@ -3,6 +3,7 @@ import { BrowserRouter, Link, NavLink, Route, Routes } from 'react-router-dom'
 import HomePage from './pages/HomePage'
 import RunsPage from './pages/RunsPage'
 import RepositoriesPage from './pages/RepositoriesPage'
+import RunDetailPage from './pages/RunDetailPage'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 2000 } },
@@ -40,6 +41,7 @@ export default function App() {
             <Route path="/" element={<HomePage />} />
             <Route path="/repositories" element={<RepositoriesPage />} />
             <Route path="/runs" element={<RunsPage />} />
+            <Route path="/runs/:id" element={<RunDetailPage />} />
           </Routes>
         </div>
       </BrowserRouter>

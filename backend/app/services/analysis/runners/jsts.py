@@ -20,7 +20,7 @@ def run_tsmorph(workspace: Path) -> tuple[ToolResult, list[dict]]:
     if _find_node() is None:
         return ToolResult(name="ts-morph", available=False, error="node not found"), []
     workspace = workspace.resolve()
-    analyzer = Path(__file__).resolve().parents[2] / "tsanalyzer" / "analyzer.mjs"
+    analyzer = Path(__file__).resolve().parents[4] / "tsanalyzer" / "analyzer.mjs"
     result = run_tool(
         "ts-morph",
         ["node", str(analyzer), str(workspace), _IGNORE],

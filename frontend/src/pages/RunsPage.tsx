@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
 import { api } from '../api/client'
 import { ProgressBar, RunStatusBadge, formatDate } from '../components/ui'
 
@@ -18,9 +19,10 @@ export default function RunsPage() {
       )}
       <div className="mt-6 space-y-3">
         {runs?.map((run) => (
-          <div
+          <Link
             key={run.id}
-            className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
+            to={`/runs/${run.id}`}
+            className="block rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-blue-300 hover:shadow"
           >
             <div className="flex items-center justify-between gap-4">
               <div className="min-w-0">
@@ -42,7 +44,7 @@ export default function RunsPage() {
             <div className="mt-3">
               <ProgressBar progress={run.progress} />
             </div>
-          </div>
+          </Link>
         ))}
       </div>
     </div>

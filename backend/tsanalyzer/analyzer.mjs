@@ -132,7 +132,7 @@ function addFinding(type, category, file, decl, message, confidence, detail) {
     category,
     file: relPath(file),
     line,
-    column: decl.getStart().getColumn() - 1,
+    column: decl.getStart().column - 1,
     message,
     description: detail || '',
     confidence,
@@ -165,14 +165,22 @@ for (const sf of sources) {
   }
 
   // unused symbols: exported or module-private top-level declarations
+  const referencingNodes = (node) => {
+    try {
+      return node.findReferencesAsNodes() ?? []
+    } catch {
+      return []
+    }
+  }
+
   for (const decl of sf.getDescendantsOfKind(SyntaxKind.VariableDeclaration)) {
     const init = decl.getInitializer()
     if (init && (init.isKind(SyntaxKind.FunctionExpression) || init.isKind(SyntaxKind.ArrowFunction))) {
       const name = decl.getName()
       if (!name || name.startsWith('_')) continue
-      const refs = decl.getSymbol()?.getReferencedSymbols() ?? []
-      const external = refs.filter((r) => r.getDefinition().getSourceFile().getFilePath() !== filePath)
-      if (refs.length === 0) {
+      const uses = referencingNodes(decl)
+      const external = uses.filter((n) => n.getSourceFile().getFilePath() !== filePath)
+      if (uses.length === 0) {
         if (unusedCount < MAX_UNUSED_FINDINGS) {
           unusedCount++
           addFinding(
@@ -183,7 +191,7 @@ for (const sf of sources) {
           )
         }
       } else if (external.length > 0) {
-        out.imports.push([fileRel, relPath(external[0].getDefinition().getSourceFile().getFilePath())])
+        out.imports.push([fileRel, relPath(external[0].getSourceFile().getFilePath())])
       }
     }
   }
@@ -191,8 +199,8 @@ for (const sf of sources) {
   for (const fn of sf.getFunctions()) {
     const name = fn.getName()
     if (!name || name.startsWith('_') || fn.isDefaultExport()) continue
-    const refs = fn.getSymbol()?.getReferencedSymbols() ?? []
-    if (refs.length === 0 && unusedCount < MAX_UNUSED_FINDINGS) {
+    const uses = referencingNodes(fn)
+    if (uses.length === 0 && unusedCount < MAX_UNUSED_FINDINGS) {
       unusedCount++
       addFinding(
         'UNUSED_FUNCTION', 'CODE_SMELL', filePath, fn,
@@ -206,14 +214,111 @@ for (const sf of sources) {
   for (const cls of sf.getClasses()) {
     const name = cls.getName()
     if (!name || name.startsWith('_')) continue
-    const refs = cls.getSymbol()?.getReferencedSymbols() ?? []
-    if (refs.length === 0 && unusedCount < MAX_UNUSED_FINDINGS) {
+    const uses = referencingNodes(cls)
+    if (uses.length === 0 && unusedCount < MAX_UNUSED_FINDINGS) {
       unusedCount++
       addFinding(
         'UNUSED_CLASS', 'CODE_SMELL', filePath, cls,
         `Class '${name}' is never referenced. May be dead code or framework-registered.`,
         0.5,
         'dynamic use (frameworks, decorators, routes) cannot be proven statically',
+      )
+    }
+  }
+
+  // --- security / correctness rules ---
+  const SQL_RE = /\b(select|insert|update|delete|drop|alter|union|where|from)\b/i
+
+  for (const bin of sf.getDescendantsOfKind(SyntaxKind.BinaryExpression)) {
+    const op = bin.getOperatorToken().getKind()
+    const left = bin.getLeft()
+    const right = bin.getRight()
+
+    if (op === SyntaxKind.PlusToken) {
+      if (left.isKind(SyntaxKind.StringLiteral) && SQL_RE.test(left.getLiteralText())) {
+        addFinding(
+          'SQL_INJECTION', 'SECURITY', filePath, bin,
+          'SQL query built by string concatenation; untrusted input may alter query semantics.',
+          0.85,
+          'concat-based query construction',
+        )
+      }
+    }
+
+    if ([
+      SyntaxKind.EqualsToken,
+      SyntaxKind.PlusEqualsToken,
+      SyntaxKind.MinusEqualsToken,
+    ].includes(op) && /\.innerHTML$/.test(left.getText())) {
+      addFinding(
+        'UNSAFE_INNER_HTML', 'SECURITY', filePath, bin,
+        'Assigning to innerHTML with interpolated content can enable DOM-based XSS.',
+        0.8,
+        'innerHTML assignment',
+      )
+    }
+
+    if ([
+      SyntaxKind.EqualsEqualsEqualsToken,
+      SyntaxKind.ExclamationEqualsEqualsToken,
+      SyntaxKind.EqualsEqualsToken,
+      SyntaxKind.ExclamationEqualsToken,
+    ].includes(op)) {
+      for (const side of [left, right]) {
+        if (side.isKind(SyntaxKind.NullKeyword) ||
+            (side.isKind(SyntaxKind.Identifier) && side.getText() === 'undefined')) {
+          addFinding(
+            'NONE_COMPARISON', 'CORRECTNESS', filePath, bin,
+            'Comparing against null/undefined; prefer optional chaining or explicit guard.',
+            0.5,
+            `compared with ${side.getText()}`,
+          )
+          break
+        }
+      }
+      if (left.getText() === right.getText()) {
+        addFinding(
+          'SELF_COMPARISON', 'CORRECTNESS', filePath, bin,
+          `Expression compares ${left.getText()} to itself; likely a copy-paste error.`,
+          0.9,
+          'self comparison',
+        )
+      }
+    }
+  }
+
+  for (const call of sf.getDescendantsOfKind(SyntaxKind.CallExpression)) {
+    const exprText = call.getExpression().getText()
+    if (exprText === 'eval' || exprText.endsWith('.eval')) {
+      addFinding(
+        'DANGEROUS_EVAL', 'SECURITY', filePath, call,
+        'eval() executes arbitrary code; avoid when input is not fully trusted.',
+        0.9,
+        'eval call',
+      )
+    }
+    if (exprText === 'Function' || exprText.endsWith('.Function')) {
+      addFinding(
+        'DANGEROUS_FUNCTION', 'SECURITY', filePath, call,
+        'Dynamic Function() constructor is eval-like code execution.',
+        0.8,
+        'Function constructor',
+      )
+    }
+  }
+
+  for (const decl of sf.getDescendantsOfKind(SyntaxKind.VariableDeclaration)) {
+    const init = decl.getInitializer()
+    if (!init || !init.isKind(SyntaxKind.StringLiteral)) continue
+    const name = decl.getName() || ''
+    const value = init.getLiteralText()
+    if (!name || !/secret|key|token|password|passwd|api/i.test(name)) continue
+    if (/^(sk-|pk-|ghp_|AKIA|eyJ)/i.test(value) || (value.length >= 16 && !/example|placeholder|your|changeme/i.test(value))) {
+      addFinding(
+        'HARDCODED_SECRET', 'SECURITY', filePath, decl,
+        `Potential hardcoded credential assigned to '${name}'.`,
+        0.85,
+        'secret literal',
       )
     }
   }
