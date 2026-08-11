@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router-dom'
 import { api, type Finding } from '../api/client'
-import { ProgressBar, RunStatusBadge, formatDate } from '../components/ui'
+import { ProgressBar, RunStatusBadge } from '../components/ui'
+import { formatDate } from '../lib/format'
 
 const CATEGORY_STYLES: Record<string, string> = {
   SECURITY: 'bg-red-50 text-red-700 border-red-200',
@@ -19,13 +20,28 @@ const SEVERITY_TONE: Record<string, string> = {
   info: 'bg-slate-100 text-slate-500',
 }
 
+const STATUS_TONE: Record<string, string> = {
+  open: 'bg-slate-100 text-slate-600',
+  confirmed: 'bg-blue-50 text-blue-700',
+  false_positive: 'bg-amber-50 text-amber-700',
+  overridden: 'bg-violet-50 text-violet-700',
+}
+
 function severityLabel(confidence: number): string {
   if (confidence >= 0.8) return 'high'
   if (confidence >= 0.5) return 'medium'
   return 'low'
 }
 
-function FindingRow({ finding }: { finding: Finding }) {
+function FindingRow({
+  finding,
+  onStatusChange,
+  updating,
+}: {
+  finding: Finding
+  onStatusChange: (status: string) => void
+  updating: boolean
+}) {
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex flex-wrap items-center gap-2">
@@ -63,6 +79,43 @@ function FindingRow({ finding }: { finding: Finding }) {
           {finding.evidence_json.snippet}
         </pre>
       )}
+
+      <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
+        <span
+          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_TONE[finding.status] ?? 'bg-slate-100 text-slate-600'}`}
+        >
+          {finding.status.replace('_', ' ')}
+        </span>
+        <div className="ml-auto flex gap-1.5">
+          {finding.status !== 'confirmed' && (
+            <button
+              onClick={() => onStatusChange('confirmed')}
+              disabled={updating}
+              className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 transition hover:border-blue-300 hover:text-blue-700 disabled:opacity-50"
+            >
+              Confirm
+            </button>
+          )}
+          {finding.status !== 'false_positive' && (
+            <button
+              onClick={() => onStatusChange('false_positive')}
+              disabled={updating}
+              className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 transition hover:border-amber-300 hover:text-amber-700 disabled:opacity-50"
+            >
+              False positive
+            </button>
+          )}
+          {finding.status !== 'open' && (
+            <button
+              onClick={() => onStatusChange('open')}
+              disabled={updating}
+              className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 transition hover:border-slate-400 hover:text-slate-900 disabled:opacity-50"
+            >
+              Reopen
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
@@ -72,8 +125,21 @@ export default function RunDetailPage() {
   const runId = Number(id)
   const [category, setCategory] = useState('')
   const [source, setSource] = useState('')
+  const [status, setStatus] = useState('')
   const [q, setQ] = useState('')
   const [search, setSearch] = useState('')
+  const [limit, setLimit] = useState(100)
+
+  const queryClient = useQueryClient()
+
+  const statusMutation = useMutation({
+    mutationFn: ({ findingId, status }: { findingId: number; status: string }) =>
+      api.updateFindingStatus(runId, findingId, status),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['run-findings', runId] })
+      queryClient.invalidateQueries({ queryKey: ['run-findings-stats', runId] })
+    },
+  })
 
   const { data: run } = useQuery({
     queryKey: ['run', runId],
@@ -90,13 +156,14 @@ export default function RunDetailPage() {
   })
 
   const { data: findings, isLoading } = useQuery({
-    queryKey: ['run-findings', runId, category, source, q],
+    queryKey: ['run-findings', runId, category, source, status, q, limit],
     queryFn: () =>
       api.getRunFindings(runId, {
         category: category || undefined,
         source: source || undefined,
+        status: status || undefined,
         q: q || undefined,
-        limit: 500,
+        limit,
       }),
     enabled: run?.status === 'completed',
   })
@@ -135,6 +202,12 @@ export default function RunDetailPage() {
         </div>
         {run && <RunStatusBadge status={run.status} />}
       </div>
+
+      {findings?.items[0]?.model_version && (
+        <p className="mt-1 text-xs text-slate-400">
+          risk model: {findings.items[0].model_version}
+        </p>
+      )}
 
       {run?.stage && running && (
         <p className="mt-2 text-sm capitalize text-blue-700">Stage: {run.stage}</p>
@@ -199,6 +272,17 @@ export default function RunDetailPage() {
               </option>
             ))}
           </select>
+          <select
+            value={status}
+            onChange={(e) => setStatus(e.target.value)}
+            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500"
+          >
+            <option value="">All statuses</option>
+            <option value="open">open</option>
+            <option value="confirmed">confirmed</option>
+            <option value="false_positive">false positive</option>
+            <option value="overridden">overridden</option>
+          </select>
           <form
             className="flex-1 min-w-48"
             onSubmit={(e) => {
@@ -230,7 +314,23 @@ export default function RunDetailPage() {
             </p>
           </div>
         )}
-        {!running && findings?.items.map((f) => <FindingRow key={f.id} finding={f} />)}
+        {!running &&
+          findings?.items.map((f) => (
+            <FindingRow
+              key={f.id}
+              finding={f}
+              updating={statusMutation.isPending}
+              onStatusChange={(next) => statusMutation.mutate({ findingId: f.id, status: next })}
+            />
+          ))}
+        {!running && findings && findings.total > findings.items.length && (
+          <button
+            onClick={() => setLimit((l) => l + 100)}
+            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-600 transition hover:border-blue-300 hover:text-blue-700"
+          >
+            Show more ({findings.items.length} of {findings.total})
+          </button>
+        )}
       </div>
 
       {!running && (files?.length ?? 0) > 0 && (

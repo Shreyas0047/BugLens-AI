@@ -70,6 +70,16 @@ def run_analysis(
         all_findings.extend(_cap(findings, 200))
         _store_file_stats(db, run.id, workspace, stats)
 
+        # 5. cross-file duplicate detection (pure Python, no external deps)
+        from app.services.analysis.dup_detect import analyze_duplicates, python_files
+
+        dup_findings = analyze_duplicates(python_files(workspace))
+        for f in dup_findings:
+            abs_file = Path(f["file"])
+            if abs_file.is_absolute():
+                f["file"] = str(abs_file.relative_to(workspace))
+        all_findings.extend(_cap(dup_findings, 100))
+
     if "javascript" in languages or "typescript" in languages:
         result, findings = run_tsmorph(workspace)
         status.append(_tool_status(result))

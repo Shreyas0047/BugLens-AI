@@ -47,6 +47,12 @@ async function main() {
   await page.waitForSelector('text=DANGEROUS_EVAL', { timeout: 15000 })
   await page.screenshot({ path: '/tmp/opencode/ui-run14.png' })
 
+  await page.goto(`${BASE}/runs/17`, { waitUntil: 'networkidle' })
+  await page.waitForSelector('text=no-dupe-keys', { timeout: 15000 })
+  await page.getByRole('button', { name: 'Confirm' }).first().click()
+  await page.waitForSelector('button:has-text("Reopen")', { timeout: 15000 })
+  await page.screenshot({ path: '/tmp/opencode/ui-triage.png' })
+
   console.log('CONSOLE_ERRORS:', JSON.stringify(errors))
   await browser.close()
 }

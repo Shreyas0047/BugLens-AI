@@ -1,7 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { api } from '../api/client'
-import { ProgressBar, RunStatusBadge, formatDate } from '../components/ui'
+import { ProgressBar, RunStatusBadge } from '../components/ui'
+import { formatDate } from '../lib/format'
 
 export default function RunsPage() {
   const { data: runs, isLoading } = useQuery({

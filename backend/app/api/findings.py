@@ -15,6 +15,7 @@ from app.schemas.finding import (
     FindingListOut,
     FindingOut,
     FindingsStatsOut,
+    FindingUpdate,
     SourceCount,
 )
 
@@ -113,3 +114,17 @@ def list_files(run_id: int, db: Session = Depends(get_db)) -> list[FileStat]:
             .limit(500)
         ).all()
     )
+
+
+@router.patch("/{run_id}/findings/{finding_id}", response_model=FindingOut)
+def update_finding_status(
+    run_id: int, finding_id: int, payload: FindingUpdate, db: Session = Depends(get_db)
+) -> Finding:
+    _get_run(run_id, db)
+    finding = db.get(Finding, finding_id)
+    if finding is None or finding.run_id != run_id:
+        raise HTTPException(status_code=404, detail="Finding not found")
+    finding.status = payload.status
+    db.commit()
+    db.refresh(finding)
+    return finding

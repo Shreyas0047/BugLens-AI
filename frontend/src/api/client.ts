@@ -66,6 +66,7 @@ export interface Finding {
   status: string
   risk_score: number | null
   severity_predicted: string | null
+  model_version: string | null
   created_at: string
 }
 
@@ -94,6 +95,7 @@ export interface RunFindingsParams {
   category?: string
   source?: string
   type?: string
+  status?: string
   min_confidence?: number
   q?: string
   limit?: number
@@ -145,4 +147,10 @@ export const api = {
   },
   getRunFindingsStats: (id: number) => request<FindingsStatsOut>(`/runs/${id}/findings/stats`),
   getRunFiles: (id: number) => request<FileStat[]>(`/runs/${id}/files`),
+  updateFindingStatus: (runId: number, findingId: number, status: string) =>
+    request<Finding>(`/runs/${runId}/findings/${findingId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    }),
 }

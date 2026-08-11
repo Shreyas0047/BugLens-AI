@@ -10,6 +10,26 @@ from app.services.analysis.tool_registry import ToolResult, run_tool
 
 _IGNORE = "node_modules,dist,build,target,.git,.venv,venv,coverage,.next,.nuxt,.svelte-kit"
 
+_ESLINT_CATEGORY: dict[str, str] = {
+    "no-eval": "SECURITY",
+    "no-implied-eval": "SECURITY",
+    "no-new-func": "SECURITY",
+    "no-prototype-builtins": "SECURITY",
+    "no-debugger": "CODE_SMELL",
+    "no-unreachable": "CORRECTNESS",
+    "no-constant-condition": "CORRECTNESS",
+    "no-self-compare": "CORRECTNESS",
+    "no-dupe-keys": "CORRECTNESS",
+    "no-duplicate-case": "CORRECTNESS",
+    "no-fallthrough": "CORRECTNESS",
+    "no-redeclare": "CORRECTNESS",
+    "no-func-assign": "CORRECTNESS",
+    "no-import-assign": "CORRECTNESS",
+    "no-cond-assign": "CORRECTNESS",
+    "no-unused-vars": "CODE_SMELL",
+    "no-empty": "CODE_SMELL",
+}
+
 
 def _find_node() -> str | None:
     return shutil.which("node")
@@ -111,7 +131,7 @@ def run_eslint(workspace: Path) -> tuple[ToolResult, list[dict]]:
                     {
                         "source": "eslint",
                         "type": msg.get("ruleId") or "SYNTAX",
-                        "category": "CORRECTNESS",
+                        "category": _ESLINT_CATEGORY.get(msg.get("ruleId"), "CORRECTNESS"),
                         "file": (
                             str(Path(file).relative_to(workspace))
                             if Path(file).is_absolute()

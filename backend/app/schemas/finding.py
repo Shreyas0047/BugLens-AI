@@ -1,6 +1,13 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
+
+FindingStatus = Literal["open", "confirmed", "false_positive", "overridden"]
+
+
+class FindingUpdate(BaseModel):
+    status: FindingStatus
 
 
 class FindingOut(BaseModel):
@@ -21,6 +28,7 @@ class FindingOut(BaseModel):
     status: str
     risk_score: float | None
     severity_predicted: str | None
+    model_version: str | None
     created_at: datetime
 
 
